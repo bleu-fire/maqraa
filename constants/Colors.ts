@@ -20,3 +20,9 @@ export const Colors = {
   warning: '#D4A843',
   destructive: '#C0714F',
 };
+
+export const Fonts = {
+  mono: 'JetBrains Mono',
+  sans: 'Inter',
+};
+
