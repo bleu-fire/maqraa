@@ -1,98 +1,100 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, FlatList,   } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/Colors';
+import { TopAppBar } from '../../components/TopAppBar';
+import { StatsBar } from '../../components/StatsBar';
+import { FilterBar } from '../../components/FilterBar';
+import { BookCard, Language, Status } from '../../components/BookCard';
+import { FAB } from '../../components/FAB';
+import { ProgressRing } from '../../components/ProgressRing';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// Dummy data for visual layout (since we don't have the Zustand store yet)
 
-export default function HomeScreen() {
+const MOCK_BOOKS = [
+  {
+    id: '1',
+    title: 'The Alchemist',
+    author: 'Paulo Coelho',
+    language: 'en' as Language,
+    status: 'in-progress' as Status,
+    coverUri: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400',
+    progressPercent: 65,
+  },
+  {
+    id: '2',
+    title: 'مقدمة ابن خلدون',
+    author: 'ابن خلدون',
+    language: 'ar' as Language,
+    status: 'to-read' as Status,
+    coverUri: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=400',
+    progressPercent: 0,
+  },
+  {
+    id: '3',
+    title: "L'Art de la Simplicité",
+    author: 'Dominique Loreau',
+    language: 'fr' as Language,
+    status: 'finished' as Status,
+    coverUri: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&q=80&w=400',
+    progressPercent: 100,
+  },
+];
+
+export default function LibraryDashboard() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('All');
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
+    <SafeAreaView style={styles.container}>
+      <TopAppBar />
+      
+      <FlatList
+        data={MOCK_BOOKS}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View style={styles.headerSection}>
+            <View style={styles.progressContainer}>
+              <ProgressRing current={12} goal={24} size={200} />
+            </View>
+            <StatsBar totalBooks={42} pagesRead={1850} finishedThisMonth={4} />
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onFilterSelect={setActiveFilter}
             />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View style={styles.bookCardWrapper}>
+            <BookCard {...item} onPress={() => console.log('Book pressed', item.title)} />
+          </View>
+        )}
+      />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <FAB onPress={() => console.log('FAB pressed')} />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.bgBase,
+  },
+  listContent: {
+    paddingBottom: 120, // space for FAB and potentially bottom nav
+  },
+  headerSection: {
+    gap: 32,
+    paddingVertical: 24,
+  },
+  progressContainer: {
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  bookCardWrapper: {
+    marginBottom: 16,
   },
 });
