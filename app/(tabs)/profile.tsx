@@ -1,112 +1,196 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, Text } from 'react-native';
-import { Colors } from '../../constants/Colors';
-import { ProfileHeader } from '../../components/ProfileHeader';
-import { MonthlyBarChart } from '../../components/MonthlyBarChart';
-import { StreakCalendar } from '../../components/StreakCalendar';
-import { AchievementBadge } from '../../components/AchievementBadge';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, FlatList, TextInput } from 'react-native';
+import Animated, { FadeInDown, useSharedValue, useAnimatedProps, withTiming, Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AntDesign } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import Svg, { Rect } from 'react-native-svg';
 
-// Mock Data
-const MOCK_USER = {
-  name: 'Ahmad Al-Mansour',
-  level: 'Scholar Level',
-  avatarUri: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
-  totalBooks: 42,
-  totalHours: 124,
-};
+import { tokens } from '../../lib/designTokens';
+import { formatTime } from '../../lib/utils';
 
-const MOCK_CHART_DATA = [
-  { day: '1', pages: 12 }, { day: '2', pages: 45 }, { day: '3', pages: 20 },
-  { day: '4', pages: 0 }, { day: '5', pages: 65 }, { day: '6', pages: 30 },
-  { day: '7', pages: 40 }, { day: '8', pages: 10 }, { day: '9', pages: 5 },
-  { day: '10', pages: 55 }, { day: '11', pages: 80 }, { day: '12', pages: 15 },
-  { day: '13', pages: 0 }, { day: '14', pages: 0 }, { day: '15', pages: 25 },
-];
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-// Generate 30 days of random intensity (0 to 4)
-const MOCK_STREAK_DAYS = Array.from({ length: 30 }, () => Math.floor(Math.random() * 5));
+import { useBookStore } from '../../store/useBookStore';
 
-const MOCK_ACHIEVEMENTS = [
-  { id: '1', title: '7-Day Streak', description: 'Read 7 days in a row.', iconName: 'flame' as const, isUnlocked: true },
-  { id: '2', title: 'Night Owl', description: 'Read past midnight.', iconName: 'moon' as const, isUnlocked: true },
-  { id: '3', title: 'Bookworm', description: 'Finish 50 books.', iconName: 'library' as const, isUnlocked: false },
-  { id: '4', title: 'Polyglot', description: 'Read in 3 languages.', iconName: 'language' as const, isUnlocked: false },
+const mockMonthly = [
+  { month: 'Jan', finished: 2 },
+  { month: 'Feb', finished: 1 },
+  { month: 'Mar', finished: 3 },
+  { month: 'Apr', finished: 0 },
+  { month: 'May', finished: 1 },
+  { month: 'Jun', finished: 2 },
 ];
 
 export default function ProfileScreen() {
+  const profile = useBookStore((state) => state.profile);
+  const stats = useBookStore((state) => state.stats);
+  const history = useBookStore((state) => state.history);
+  const updateProfileAvatar = useBookStore((state) => state.updateProfileAvatar);
+  const updateProfileName = useBookStore((state) => state.updateProfileName);
+
+  const handlePickAvatar = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      updateProfileAvatar(result.assets[0].uri);
+    }
+  };
+
+  const renderHistoryItem = ({ item, index }: any) => (
+    <Animated.View 
+      entering={FadeInDown.delay(index * 100).springify()} 
+      style={styles.historyItem}
+    >
+      <Text style={styles.historyTitle}>{item.bookTitle}</Text>
+      <Text style={styles.historySubtitle}>{item.date}</Text>
+      <View style={styles.historyStats}>
+        <Text style={styles.statText}>📖 {item.pagesRead} pages</Text>
+        <Text style={styles.statText}>⏱ {formatTime(item.durationSec)}</Text>
+      </View>
+    </Animated.View>
+  );
+
+  const renderBar = ({ item }: any) => <AnimatedSvgBar item={item} />;
+
   return (
-    <View style={styles.container}>
-        <SafeAreaView>
-                <View style={styles.appBar}>
-        <Text style={styles.appBarTitle}>Profile & Stats</Text>
-        <Ionicons name="settings-outline" size={24} color={Colors.textPrimary} />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Profile Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper}>
+          {profile.avatarUri ? (
+            <Image source={{ uri: profile.avatarUri }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <AntDesign name="user" size={48} color={tokens.colors.textSecondary} />
+            </View>
+          )}
+        </TouchableOpacity>
+        <TextInput 
+          style={styles.nameInput}
+          value={profile.name}
+          onChangeText={updateProfileName}
+          placeholder="Enter your name"
+          placeholderTextColor={tokens.colors.textSecondary}
+        />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <ProfileHeader {...MOCK_USER} />
-
-        <MonthlyBarChart data={MOCK_CHART_DATA} />
-
-        <StreakCalendar days={MOCK_STREAK_DAYS} />
-
-        <View style={styles.achievementsSection}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <View style={styles.badgesGrid}>
-            {MOCK_ACHIEVEMENTS.map((badge) => (
-              <View key={badge.id} style={styles.badgeWrapper}>
-                <AchievementBadge {...badge} />
-              </View>
-            ))}
-          </View>
+      {/* Cumulative Stats */}
+      <View style={styles.statsRow}>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{stats.totalBooks}</Text>
+          <Text style={styles.statLabel}>Books</Text>
         </View>
-      </ScrollView>
-        </SafeAreaView>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{stats.totalPages}</Text>
+          <Text style={styles.statLabel}>Pages</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{formatTime(stats.totalTimeSec)}</Text>
+          <Text style={styles.statLabel}>Reading Time</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statNumber}>{stats.streakDays}</Text>
+          <Text style={styles.statLabel}>Streak (days)</Text>
+        </View>
+      </View>
+
+      {/* Monthly Bar Chart */}
+      <Text style={styles.sectionHeader}>Books Finished per Month</Text>
+      <View style={styles.barChart}>
+        <FlatList 
+          data={mockMonthly} 
+          renderItem={renderBar} 
+          keyExtractor={item => item.month} 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+        />
+      </View>
+
+      {/* Reading History */}
+      <Text style={styles.sectionHeader}>Recent Sessions</Text>
+      <FlatList 
+        data={history} 
+        renderItem={renderHistoryItem} 
+        keyExtractor={item => item.id} 
+        contentContainerStyle={styles.historyList} 
+      />
+    </SafeAreaView>
+  );
+}
+
+function AnimatedSvgBar({ item }: { item: any }) {
+  const animatedHeight = useSharedValue(0);
+  const maxHeight = 80;
+  const targetHeight = Math.min(item.finished * 20, maxHeight); // scale factor
+
+  React.useEffect(() => {
+    animatedHeight.value = withTiming(targetHeight, {
+      duration: 1000,
+      easing: Easing.out(Easing.exp),
+    });
+  }, [targetHeight]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    height: animatedHeight.value,
+    y: maxHeight - animatedHeight.value, // push down to align bottom
+  }));
+
+  return (
+    <View style={styles.barContainer}>
+      <Text style={styles.barLabel}>{item.month}</Text>
+      <View style={styles.svgWrapper}>
+        <Svg width={20} height={maxHeight}>
+          {/* Background Bar */}
+          <Rect
+            x={0}
+            y={0}
+            width={20}
+            height={maxHeight}
+            fill={tokens.colors.surface}
+            rx={4}
+          />
+          {/* Animated Foreground Bar */}
+          <AnimatedRect
+            x={0}
+            width={20}
+            fill={tokens.colors.tertiary}
+            rx={4}
+            animatedProps={animatedProps}
+          />
+        </Svg>
+      </View>
+      <Text style={styles.barCount}>{item.finished}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bgBase,
-  },
-  appBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.bgElevated,
-    backgroundColor: Colors.bgSurface,
-  },
-  appBarTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  scrollContent: {
-    paddingVertical: 32,
-    gap: 32,
-  },
-  achievementsSection: {
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: 16,
-  },
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  badgeWrapper: {
-    width: '47%', // 2 columns with gap
-  },
+  container: { flex: 1, backgroundColor: tokens.colors.bgBase, padding: tokens.spacing.m },
+  header: { alignItems: 'center', marginBottom: tokens.spacing.l },
+  avatarWrapper: { marginBottom: tokens.spacing.s },
+  avatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: tokens.colors.surface },
+  avatarPlaceholder: { width: 120, height: 120, borderRadius: 60, backgroundColor: tokens.colors.surface, justifyContent: 'center', alignItems: 'center' },
+  nameInput: { color: tokens.colors.textPrimary, fontSize: 20, fontWeight: '600', textAlign: 'center', minWidth: 150, padding: 4 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.l },
+  statBox: { flex: 1, alignItems: 'center', padding: tokens.spacing.s, backgroundColor: tokens.colors.elevated, borderRadius: tokens.radius, marginHorizontal: 4 },
+  statNumber: { color: tokens.colors.textPrimary, fontSize: 18, fontWeight: '600' },
+  statLabel: { color: tokens.colors.textSecondary, fontSize: 12 },
+  sectionHeader: { color: tokens.colors.textPrimary, fontSize: 16, fontWeight: '500', marginBottom: tokens.spacing.s, marginTop: tokens.spacing.m },
+  barChart: { marginBottom: tokens.spacing.l },
+  barContainer: { alignItems: 'center', marginHorizontal: 8 },
+  barLabel: { color: tokens.colors.textSecondary, fontSize: 12, marginBottom: 4 },
+  svgWrapper: { width: 20, height: 80, overflow: 'hidden' },
+  barCount: { color: tokens.colors.textPrimary, fontSize: 12, marginTop: 4 },
+  historyList: { paddingBottom: 80 },
+  historyItem: { backgroundColor: tokens.colors.elevated, borderRadius: tokens.radius, padding: tokens.spacing.s, marginBottom: tokens.spacing.s },
+  historyTitle: { color: tokens.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  historySubtitle: { color: tokens.colors.textSecondary, fontSize: 12, marginBottom: tokens.spacing.s },
+  historyStats: { flexDirection: 'row', justifyContent: 'space-between' },
+  statText: { color: tokens.colors.textSecondary, fontSize: 12 },
 });

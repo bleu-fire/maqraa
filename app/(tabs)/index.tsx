@@ -1,80 +1,82 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList,   } from 'react-native';
+import { View, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Colors';
-import { TopAppBar } from '../../components/TopAppBar';
-import { StatsBar } from '../../components/StatsBar';
-import { FilterBar } from '../../components/FilterBar';
-import { BookCard, Language, Status } from '../../components/BookCard';
-import { FAB } from '../../components/FAB';
-import { ProgressRing } from '../../components/ProgressRing';
+import { AntDesign } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
-// Dummy data for visual layout (since we don't have the Zustand store yet)
+import { tokens } from '../../lib/designTokens';
+import { ProgressRingHeader } from '../../components/ProgressRingHeader';
+import { LibraryFilterBar } from '../../components/LibraryFilterBar';
+import { LibraryStatsBar } from '../../components/LibraryStatsBar';
+import { BookCard, Book } from '../../components/BookCard';
+import { useBookStore } from '../../store/useBookStore';
 
-const MOCK_BOOKS = [
-  {
-    id: '1',
-    title: 'The Alchemist',
-    author: 'Paulo Coelho',
-    language: 'en' as Language,
-    status: 'in-progress' as Status,
-    coverUri: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400',
-    progressPercent: 65,
-  },
-  {
-    id: '2',
-    title: 'مقدمة ابن خلدون',
-    author: 'ابن خلدون',
-    language: 'ar' as Language,
-    status: 'to-read' as Status,
-    coverUri: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=400',
-    progressPercent: 0,
-  },
-  {
-    id: '3',
-    title: "L'Art de la Simplicité",
-    author: 'Dominique Loreau',
-    language: 'fr' as Language,
-    status: 'finished' as Status,
-    coverUri: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&q=80&w=400',
-    progressPercent: 100,
-  },
-];
+export default function LibraryScreen() {
+  const router = useRouter();
+  const books = useBookStore((state) => state.books);
+  const profile = useBookStore((state) => state.profile);
+  const stats = useBookStore((state) => state.stats);
 
-export default function LibraryDashboard() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [filterLang, setFilterLang] = useState<string | null>(null);
+
+  // Filter the actual books from Zustand
+  const filtered = books.filter((b) => {
+    const matchesSearch =
+      b.title.toLowerCase().includes(search.toLowerCase()) ||
+      b.author.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus ? b.status === filterStatus : true;
+    // We didn't add language to the add-book form yet, so this might be undefined for new books. Let's handle it safely.
+    const matchesLang = filterLang ? b.language === filterLang : true; 
+    return matchesSearch && matchesStatus && matchesLang;
+  });
+
+  // Yearly goal dynamically from profile
+  const yearlyGoal = profile.yearlyGoal;
+  const finishedCount = books.filter((b) => b.status === 'finished').length;
+  const goalPercent = yearlyGoal > 0 ? Math.round((finishedCount / yearlyGoal) * 100) : 0;
+
+  // Stats dynamically from global state
+  const totalBooks = stats.totalBooks;
+  const pagesRead = stats.totalPages;
+  const finishedThisMonth = 0; // Can be derived from history later
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopAppBar />
-      
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ProgressRingHeader progressPercent={goalPercent} label="Yearly Goal" />
+
+      <LibraryStatsBar
+        totalBooks={totalBooks}
+        pagesRead={pagesRead}
+        finishedThisMonth={finishedThisMonth}
+      />
+
+      <LibraryFilterBar
+        search={search}
+        setSearch={setSearch}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
+        filterLang={filterLang}
+        setFilterLang={setFilterLang}
+      />
+
+      {/* Book list */}
       <FlatList
-        data={MOCK_BOOKS}
+        data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.headerSection}>
-            <View style={styles.progressContainer}>
-              <ProgressRing current={12} goal={24} size={200} />
-            </View>
-            <StatsBar totalBooks={42} pagesRead={1850} finishedThisMonth={4} />
-            <FilterBar
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              activeFilter={activeFilter}
-              onFilterSelect={setActiveFilter}
-            />
-          </View>
-        }
         renderItem={({ item }) => (
-          <View style={styles.bookCardWrapper}>
-            <BookCard {...item} onPress={() => console.log('Book pressed', item.title)} />
-          </View>
+          <TouchableOpacity onPress={() => router.push(`/book/${item.id}` as any)}>
+            <BookCard book={item} />
+          </TouchableOpacity>
         )}
       />
 
-      <FAB onPress={() => console.log('FAB pressed')} />
+      {/* FAB */}
+      <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-book' as any)}>
+        <AntDesign name="plus" size={24} color={tokens.colors.textPrimary} />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -82,19 +84,26 @@ export default function LibraryDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgBase,
+    backgroundColor: tokens.colors.bgBase,
+    padding: tokens.spacing.m,
   },
   listContent: {
-    paddingBottom: 120, // space for FAB and potentially bottom nav
+    paddingBottom: 80,
   },
-  headerSection: {
-    gap: 32,
-    paddingVertical: 24,
-  },
-  progressContainer: {
+  fab: {
+    position: 'absolute',
+    right: tokens.spacing.l,
+    bottom: tokens.spacing.l,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: tokens.colors.primary,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  bookCardWrapper: {
-    marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
 });
